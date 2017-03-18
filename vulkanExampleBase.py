@@ -1,3 +1,6 @@
+
+import time
+
 from pyVulkan import *
 
 from PySide import (QtGui, QtCore)
@@ -154,7 +157,7 @@ class VulkanExampleBase(QtGui.QWidget):
 
         self.__timer = QtCore.QTimer(self)
         self.__timer.timeout.connect(self.renderLoop)
-        self.__timer.start(1)
+        self.__timer.start()
 
         # # Enable console if validation is active
         # # Debug message callback will output to it
@@ -753,6 +756,7 @@ class VulkanExampleBase(QtGui.QWidget):
     def renderLoop(self):
         self.__destWidth = self.width
         self.__destHeight = self.height
+        tStart = time.clock()
 
         if self.__viewUpdated:
             self.__viewUpdated = False
@@ -761,8 +765,9 @@ class VulkanExampleBase(QtGui.QWidget):
         self.render()
 
         self._frameCounter += 1
-        time = self.__timer.interval()
-        self._frameTimer = time / 1000.0
+        tEnd = time.clock()
+        # tDiff = tEnd - tStart
+        self._frameTimer = tEnd - tStart
         self.camera.update(self._frameTimer)
         if self.camera.moving():
             self.__viewUpdated = True
@@ -771,8 +776,8 @@ class VulkanExampleBase(QtGui.QWidget):
             self.timer += self.timerSpeed * self._frameTimer
             if self.timer > 1.0:
                 self.timer -= 1.0
-        self.__fpsTimer += float(time)
-        if self.__fpsTimer > 1000.0:
+        self.__fpsTimer += self._frameTimer
+        if self.__fpsTimer > 1.0:
             if not self.enableTextOverlay:
                 self.setWindowTitle(self.__getWindowTitle())
             self._lastFPS = round(1.0 / self._frameTimer)
