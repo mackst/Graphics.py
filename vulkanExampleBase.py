@@ -153,8 +153,8 @@ class VulkanExampleBase(QtGui.QWidget):
         self.__resizing = False
 
         self.__timer = QtCore.QTimer(self)
-        self.__timer.start(30)
         self.__timer.timeout.connect(self.renderLoop)
+        self.__timer.start(1)
 
         # # Enable console if validation is active
         # # Debug message callback will output to it
