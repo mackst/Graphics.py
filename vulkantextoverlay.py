@@ -1,5 +1,6 @@
 ##########################################################################
-# Text overlay class for displaying debug information from Sascha Willems - www.saschawillems.de
+# Text overlay class for displaying debug information
+#                               - port from Sascha Willems - www.saschawillems.de
 #
 # Copyright (C) 2017 by Shi Chi
 # This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)

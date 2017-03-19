@@ -1,5 +1,5 @@
 ##########################################################################
-# Basic camera class from Sascha Willems - www.saschawillems.de
+# Basic camera class port from Sascha Willems - www.saschawillems.de
 #
 # Copyright (C) 2017 by Shi Chi
 # This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)

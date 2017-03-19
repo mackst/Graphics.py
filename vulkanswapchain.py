@@ -1,5 +1,6 @@
 ##########################################################################
-# Class wrapping access to the swap chain from Sascha Willems - www.saschawillems.de
+# Class wrapping access to the swap chain
+#                         - port from Sascha Willems - www.saschawillems.de
 #
 # Copyright (C) 2017 by Shi Chi
 # This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
