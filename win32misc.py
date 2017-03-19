@@ -1,3 +1,10 @@
+##########################################################################
+#
+# Copyright (C) 2017 by Shi Chi
+# This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
+#
+##########################################################################
+
 from ctypes import (pythonapi, c_void_p, py_object)
 
 from cffi import FFI
