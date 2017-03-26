@@ -82,3 +82,20 @@ class VulkanTextureLoader(object):
 
     def __del__(self):
         vkFreeCommandBuffers(self.__vulkanDevice.logicalDevice, self.__cmdPool, 1, [self.__cmdBuffer])
+
+class UniformData(object):
+
+    def __init__(self):
+        self.buffer = None
+        self.memory = None
+        self.descriptor = None
+        self.allocSize = 0
+        mapped = None
+
+    def __del__(self):
+        self.buffer = None
+        self.memory = None
+        self.descriptor = None
+        self.allocSize = 0
+        mapped = None
+
