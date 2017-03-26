@@ -88,6 +88,13 @@ def getVertexInputAttributeDescriptions(layouts, binding):
 
     return attributeDescriptions
 
+def freeMeshBufferResources(device, meshBuffer):
+    vkDestroyBuffer(device, meshBuffer.vertices.buf, None)
+    vkFreeMemory(device, meshBuffer.vertices.mem, None)
+    if meshBuffer.indices.buf != VK_NULL_HANDLE:
+        vkDestroyBuffer(device, meshBuffer.indices.buf, None)
+        vkFreeMemory(device, meshBuffer.indices.mem, None)
+
 
 class Mesh(object):
 
@@ -140,14 +147,6 @@ class Mesh(object):
         vkCmdBindVertexBuffers(cmdBuffer, self.vertexBufferBinding, 1, [self.buffers.vertices.buf], offsets)
         vkCmdBindIndexBuffer(cmdBuffer, self.buffers.indices.buf, 0, VK_INDEX_TYPE_UINT32)
         vkCmdDrawIndexed(cmdBuffer, self.buffers.indexCount, 1, 0, 0, 0)
-
-    @staticmethod
-    def freeMeshBufferResources(device, meshBuffer):
-        vkDestroyBuffer(device, meshBuffer)
-        vkFreeMemory(device, meshBuffer.vertices.mem)
-        if meshBuffer.indices.buf != VK_NULL_HANDLE:
-            vkDestroyBuffer(device, meshBuffer.indices.buf)
-            vkFreeMemory(device, meshBuffer.indices.mem)
 
 class _Vertex(object):
 
