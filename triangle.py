@@ -127,6 +127,7 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             vkDestroySemaphore(self._device, self.renderCompleteSemaphore, None)
 
         [vkDestroyFence(self._device, fence, None) for fence in self.waitFences]
+        super(VulkanExample, self).__del__()
 
     def getMemoryTypeIndex(self, typeBits, properties):
         for i, memType in enumerate(self._deviceMemoryProperties.memoryTypes):
