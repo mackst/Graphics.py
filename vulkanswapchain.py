@@ -8,8 +8,6 @@
 
 from pyVulkan import *
 
-from PySide import (QtGui, QtCore)
-
 import win32misc
 
 
@@ -63,7 +61,8 @@ class VulkanSwapChain(object):
     def initSurface(self, window):
         vkCreateWin32SurfaceKHR = vkGetInstanceProcAddr(self.__instance, 'vkCreateWin32SurfaceKHR')
 
-        hwnd, hinstance = win32misc.getWinHandles(window.winId())
+        hwnd = window.winId()
+        hinstance = win32misc.getInstance(hwnd)
         createInfo = VkWin32SurfaceCreateInfoKHR(
             hwnd=hwnd,
             hinstance=hinstance

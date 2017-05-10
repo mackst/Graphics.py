@@ -30,6 +30,7 @@ def setupDebugging(instance, flags):
     global CreateDebugReportCallback
     global DestroyDebugReportCallback
     global dbgBreakCallback
+    global msgCallback
     CreateDebugReportCallback = vkGetInstanceProcAddr(instance, 'vkCreateDebugReportCallbackEXT')
     DestroyDebugReportCallback = vkGetInstanceProcAddr(instance, 'vkDestroyDebugReportCallbackEXT')
     dbgBreakCallback = vkGetInstanceProcAddr(instance, 'vkDebugReportMessageEXT')
@@ -44,6 +45,7 @@ def setupDebugging(instance, flags):
 
 # Clear debug callback
 def freeDebugCallback(instance):
+    global msgCallback
     if msgCallback:
         DestroyDebugReportCallback(instance, msgCallback, None)
 

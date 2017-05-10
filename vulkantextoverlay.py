@@ -8,8 +8,11 @@
 
 from pyVulkan import *
 from PIL import ImageFont
+import numpy as np
 
 
+STB_FONT_WIDTH = 256
+STB_FONT_HEIGHT = 170
 MAX_CHAR_COUNT = 1024
 
 
@@ -84,6 +87,7 @@ class VulkanTextOverlay(object):
 
     def prepareResources(self):
         fontIm = self.__imFont.getmask(self.__stbFontData, 'L')
+        imArray = np.asarray(fontIm, np.float32)
 
         # command buffer
 
@@ -104,4 +108,31 @@ class VulkanTextOverlay(object):
         self.cmdBuffers = ffi.new('VkCommandBuffer[]', bufs)
 
         # vertex buffer
-        self.__vertexBuffer = self.__vulkanDevice.createBuffer()
+        self.__vertexBuffer, vertexMem = self.__vulkanDevice.createBuffer(
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            MAX_CHAR_COUNT * np.zeros(4, np.float32).nbytes
+        )
+
+        # font texture
+        imageInfo = VkImageCreateInfo(
+            imageType=VK_IMAGE_TYPE_2D,
+            format=VK_FORMAT_R8_UNORM,
+            extent=VkExtent3D(STB_FONT_WIDTH, STB_FONT_HEIGHT, 1),
+            mipLevels=1,
+            arrayLayers=1,
+            samples=VK_SAMPLE_COUNT_1_BIT,
+            tiling=VK_IMAGE_TILING_OPTIMAL,
+            usage=VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            sharingMode=VK_SHARING_MODE_EXCLUSIVE,
+            initialLayout=VK_IMAGE_LAYOUT_PREINITIALIZED
+        )
+        self.__image = vkCreateImage(self.__vulkanDevice.logicalDevice, [imageInfo], None)
+
+        allocInfo = VkMemoryAllocateInfo(allocationSize=0, memoryTypeIndex=0)
+        memReqs = vkGetImageMemoryRequirements(self.__vulkanDevice.logicalDevice, self.__image)
+        allocInfo.allocationSize = memReqs.size
+        allocInfo.memoryTypeIndex = self.__vulkanDevice.getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+        self.__imageMemory = vkAllocateMemory(self.__vulkanDevice.logicalDevice, allocInfo, None)
+        vkBindImageMemory(self.__vulkanDevice.logicalDevice, self.__image, self.__imageMemory, 0)
+

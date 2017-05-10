@@ -99,7 +99,7 @@ class VulkanDevice(object):
 
         # Get queue family indices for the requested queue family types
         # Note that the indices may overlap depending on the implementation
-        defaultQueuePriority = 0.0
+        defaultQueuePriority = [0.0]
 
         # Graphics queue
         if requestedQueueTypes & VK_QUEUE_GRAPHICS_BIT:
@@ -160,7 +160,7 @@ class VulkanDevice(object):
             self.enableDebugMarkers = True
 
         if len(deviceExtensions) > 0:
-            devExtensions = [ffi.new('char[]', i) for i in deviceExtensions]
+            devExtensions = [ffi.new('char[]', i.encode()) for i in deviceExtensions]
             deArray = ffi.new('char*[]', devExtensions)
             deviceCreateInfo.enabledExtensionCount = len(deviceExtensions)
             deviceCreateInfo.ppEnabledExtensionNames = deArray
@@ -178,7 +178,7 @@ class VulkanDevice(object):
     # @param buffer Pointer to the buffer handle acquired by the function
     # @param memory Pointer to the memory handle acquired by the function
     # @param data Pointer to the data that should be copied to the buffer after creation (optional, if not set, no data is copied over)
-    def createBuffer(self, usageFlags, memoryPropertyFlags, size, data=None):
+    def createBuffer(self, usageFlags, memoryPropertyFlags, size, data=None, buffer=None):
         bufferCreateInfo = vkTools.initializers.bufferCreateInfo(usageFlags, size)
         buf = vkCreateBuffer(self.logicalDevice, bufferCreateInfo, None)
 
@@ -194,6 +194,17 @@ class VulkanDevice(object):
             mapped = vkMapMemory(self.logicalDevice, memory, 0, size, 0)
             ffi.memmove(mapped, data, size)
             vkUnmapMemory(self.logicalDevice, memory)
+
+        if buffer:
+            buffer.buffer = buf
+            buffer.memory = memory
+            buffer.alignment = memReqs.alignment
+            buffer.size = memAlloc.allocationSize
+            buffer.usageFlags = usageFlags
+            buffer.memoryPropertyFlags = memoryPropertyFlags
+
+            # Initialize a default descriptor that covers the whole buffer size
+            buffer.setupDescriptor()
 
         # Attach the memory to the buffer object
         vkBindBufferMemory(self.logicalDevice, buf, memory, 0)
@@ -262,7 +273,7 @@ class VulkanDevice(object):
 
         submitInfo = VkSubmitInfo(
             commandBufferCount=1,
-            pCommandBuffers=commandBuffer
+            pCommandBuffers=[commandBuffer]
         )
 
         # Create fence to ensure that the command buffer has finished executing
@@ -272,7 +283,7 @@ class VulkanDevice(object):
         # Submit to the queue
         vkQueueSubmit(queue, 1, submitInfo, fence)
         # Wait for the fence to signal that command buffer has finished executing
-        vkWaitForFences(self.logicalDevice, 1, fence, VK_TRUE, 100000000000)
+        vkWaitForFences(self.logicalDevice, 1, [fence], VK_TRUE, 100000000000)
 
         vkDestroyFence(self.logicalDevice, fence, None)
 

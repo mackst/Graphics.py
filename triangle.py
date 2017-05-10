@@ -6,10 +6,11 @@
 # This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 ##########################################################################
 
-
+import os.path
 import logging
+import inspect
 
-from PySide import (QtCore, QtGui)
+from PyQt5 import QtGui
 from pyVulkan import *
 import numpy as np
 
@@ -24,8 +25,13 @@ USE_STAGING = True
 
 UINT64_MAX = 0xffffffffffffffff
 
-logger = logging.getLogger('triangle')
-logger.setLevel(logging.INFO)
+__name = os.path.basename(inspect.getframeinfo(inspect.currentframe()).filename)
+__logName = os.path.splitext(__name)[0]
+logger = logging.getLogger(__logName)
+if ENABLE_VALIDATION:
+    logger.setLevel(logging.DEBUG)
+else:
+    logger.setLevel(logging.INFO)
 sh = logging.StreamHandler()
 sh.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -76,8 +82,8 @@ class UBO_VS(object):
 
 class VulkanExample(vulkanExampleBase.VulkanExampleBase):
 
-    def __init__(self):
-        super(VulkanExample, self).__init__(ENABLE_VALIDATION, None)
+    def __init__(self, enableValidation=False):
+        super(VulkanExample, self).__init__(enableValidation=enableValidation)
         self.vertices = Vertice()
         self.indices = Indices()
         self.uniformDataVS = Uniform()
@@ -92,45 +98,45 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
 
         self.waitFences = []
 
-        self.width = 1280
-        self.height = 720
+        self.winWidth = 1280
+        self.winHeight = 720
         self.zoom = -2.5
         self.title = "Vulkan Example - Basic indexed triangle"
 
     def __del__(self):
 
         if self.pipeline:
-            vkDestroyPipeline(self._device, self.pipeline, None)
+            vkDestroyPipeline(self.device, self.pipeline, None)
 
         if self.pipelineLayout:
-            vkDestroyPipelineLayout(self._device, self.pipelineLayout, None)
+            vkDestroyPipelineLayout(self.device, self.pipelineLayout, None)
 
         if self.descriptorSetLayout:
-            vkDestroyDescriptorSetLayout(self._device, self.descriptorSetLayout, None)
+            vkDestroyDescriptorSetLayout(self.device, self.descriptorSetLayout, None)
 
         if self.vertices.buffer:
-            vkDestroyBuffer(self._device, self.vertices.buffer, None)
-            vkFreeMemory(self._device, self.vertices.memory, None)
+            vkDestroyBuffer(self.device, self.vertices.buffer, None)
+            vkFreeMemory(self.device, self.vertices.memory, None)
 
         if self.indices.buffer:
-            vkDestroyBuffer(self._device, self.indices.buffer, None)
-            vkFreeMemory(self._device, self.indices.memory, None)
+            vkDestroyBuffer(self.device, self.indices.buffer, None)
+            vkFreeMemory(self.device, self.indices.memory, None)
 
         if self.uniformDataVS.buffer:
-            vkDestroyBuffer(self._device, self.uniformDataVS.buffer, None)
-            vkFreeMemory(self._device, self.uniformDataVS.memory, None)
+            vkDestroyBuffer(self.device, self.uniformDataVS.buffer, None)
+            vkFreeMemory(self.device, self.uniformDataVS.memory, None)
 
         if self.presentCompleteSemaphore:
-            vkDestroySemaphore(self._device, self.presentCompleteSemaphore, None)
+            vkDestroySemaphore(self.device, self.presentCompleteSemaphore, None)
 
         if self.renderCompleteSemaphore:
-            vkDestroySemaphore(self._device, self.renderCompleteSemaphore, None)
+            vkDestroySemaphore(self.device, self.renderCompleteSemaphore, None)
 
-        [vkDestroyFence(self._device, fence, None) for fence in self.waitFences]
+        [vkDestroyFence(self.device, fence, None) for fence in self.waitFences]
         super(VulkanExample, self).__del__()
 
     def getMemoryTypeIndex(self, typeBits, properties):
-        for i, memType in enumerate(self._deviceMemoryProperties.memoryTypes):
+        for i, memType in enumerate(self.deviceMemoryProperties.memoryTypes):
             if (typeBits & 1) == 1:
                 if (memType.propertyFlags & properties) == properties:
                     return i
@@ -144,14 +150,14 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
         # Semaphores (Used for correct command ordering)
         semaphoreCreateInfo = VkSemaphoreCreateInfo()
         # Semaphore used to ensures that image presentation is complete before starting to submit again
-        self.presentCompleteSemaphore = vkCreateSemaphore(self._device, semaphoreCreateInfo, None)
+        self.presentCompleteSemaphore = vkCreateSemaphore(self.device, semaphoreCreateInfo, None)
         # Semaphore used to ensures that all commands submitted have been finished before submitting the image to the queue
-        self.renderCompleteSemaphore = vkCreateSemaphore(self._device, semaphoreCreateInfo, None)
+        self.renderCompleteSemaphore = vkCreateSemaphore(self.device, semaphoreCreateInfo, None)
 
         # Fences (Used to check draw command buffer completion)
         # Create in signaled state so we don't wait on first render of each command buffer
         fenceCreateInfo = VkFenceCreateInfo(flags=VK_FENCE_CREATE_SIGNALED_BIT)
-        self.waitFences = [vkCreateFence(self._device, fenceCreateInfo, None) for dbuf in self._drawCmdBuffers]
+        self.waitFences = [vkCreateFence(self.device, fenceCreateInfo, None) for dbuf in self.drawCmdBuffers]
 
         logger.debug('end of prepareSynchronizationPrimitives')
 
@@ -160,12 +166,12 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
         cmdBuffer = None
 
         cmdBufAllocateInfo = VkCommandBufferAllocateInfo(
-            commandPool=self._cmdPool,
+            commandPool=self.cmdPool,
             level=VK_COMMAND_BUFFER_LEVEL_PRIMARY,
             commandBufferCount=1
         )
 
-        cmdBuffer = vkAllocateCommandBuffers(self._device, cmdBufAllocateInfo)[0]
+        cmdBuffer = vkAllocateCommandBuffers(self.device, cmdBufAllocateInfo)[0]
 
         # If requested, also start the new command buffer
         if begin:
@@ -188,37 +194,37 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
 
         # Create fence to ensure that the command buffer has finished executing
         fencCreateInfo = VkFenceCreateInfo(flags=0)
-        fence = vkCreateFence(self._device, fencCreateInfo, None)
+        fence = vkCreateFence(self.device, fencCreateInfo, None)
 
         # submit to the queue
-        vkQueueSubmit(self._queue, 1, [submitInfo], fence)
+        vkQueueSubmit(self.queue, 1, [submitInfo], fence)
         # Wait for the fence to signal that command buffer has finished executing
-        vkWaitForFences(self._device, 1, [fence], VK_TRUE, vulkantools.DEFAULT_FENCE_TIMEOUT)
+        vkWaitForFences(self.device, 1, [fence], VK_TRUE, vulkantools.DEFAULT_FENCE_TIMEOUT)
 
-        vkDestroyFence(self._device, fence, None)
-        vkFreeCommandBuffers(self._device, self._cmdPool, 1, [commandBuffer])
+        vkDestroyFence(self.device, fence, None)
+        vkFreeCommandBuffers(self.device, self.cmdPool, 1, [commandBuffer])
         logger.debug('end of flushCommandBuffer')
 
     def buildCommandBuffers(self):
         logger.debug('begin buildCommandBuffers')
         cmdBufInfo = VkCommandBufferBeginInfo()
 
-        for i, drawBuf in enumerate(self._drawCmdBuffers):
+        for i, drawBuf in enumerate(self.drawCmdBuffers):
             # Set clear values for all framebuffer attachments with loadOp set to clear
             # We use two attachments (color and depth) that are cleared at the start of the subpass and as such we need to set clear values for both
-            # clearValues = [VkClearValue(color=[[0.0, 0.0, 0.2, 1.0]]),
-            #                VkClearValue(depthStencil=[1.0, 0])]
-            clearValues = ffi.new('VkClearValue[]', 2)
-            clearValues[0].color = [[0.0, 0.0, 0.2, 1.0]]
-            clearValues[1].depthStencil = [1.0, 0]
+            clearValues = [VkClearValue(color=[[0.0, 0.0, 0.2, 1.0]]),
+                           VkClearValue(depthStencil=[1.0, 0])]
+            # clearValues = ffi.new('VkClearValue[]', 2)
+            # clearValues[0].color = [[0.0, 0.0, 0.2, 1.0]]
+            # clearValues[1].depthStencil = [1.0, 0]
 
-            renderArea = VkRect2D(offset=[0, 0], extent=[self.width, self.height])
+            renderArea = VkRect2D(offset=[0, 0], extent=[self.winWidth, self.winHeight])
             renderPassBeginInfo = VkRenderPassBeginInfo(
-                renderPass=self._renderPass,
+                renderPass=self.renderPass,
                 renderArea=renderArea,
                 clearValueCount=len(clearValues),
                 pClearValues=clearValues,
-                framebuffer=self._frameBuffers[i]
+                framebuffer=self.frameBuffers[i]
             )
 
             vkBeginCommandBuffer(drawBuf, cmdBufInfo)
@@ -229,15 +235,15 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
 
             # Update dynamic viewport state
             viewport = VkViewport(
-                height=float(self.height),
-                width=float(self.width),
+                height=float(self.winHeight),
+                width=float(self.winWidth),
                 minDepth=0.0,
                 maxDepth=1.0
             )
             vkCmdSetViewport(drawBuf, 0, 1, [viewport])
 
             # Update dynamic scissor state
-            scissor = VkRect2D([0, 0], [self.width, self.height])
+            scissor = VkRect2D([0, 0], [self.winWidth, self.winHeight])
             vkCmdSetScissor(drawBuf, 0, 1, [scissor])
 
             # Bind the rendering pipeline
@@ -269,11 +275,11 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
     def draw(self):
         logger.debug('begin draw')
         # Get next image in the swap chain (back/front buffer)
-        self._currentBuffer = self._swapChain.acquireNextImage(self.presentCompleteSemaphore)
+        self.currentBuffer = self.swapChain.acquireNextImage(self.presentCompleteSemaphore)
 
         # Use a fence to wait until the command buffer has finished execution before using it again
-        vkWaitForFences(self._device, 1, [self.waitFences[self._currentBuffer]], VK_TRUE, UINT64_MAX)
-        vkResetFences(self._device, 1, [self.waitFences[self._currentBuffer]])
+        vkWaitForFences(self.device, 1, [self.waitFences[self.currentBuffer]], VK_TRUE, UINT64_MAX)
+        vkResetFences(self.device, 1, [self.waitFences[self.currentBuffer]])
 
         # Pipeline stage at which the queue submission will wait (via pWaitSemaphores)
         waitStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
@@ -285,17 +291,16 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
                                   waitSemaphoreCount=1,
                                   pSignalSemaphores=[self.renderCompleteSemaphore],
                                   signalSemaphoreCount=1,
-                                  pCommandBuffers=[self._drawCmdBuffers[self._currentBuffer]],
+                                  pCommandBuffers=[self.drawCmdBuffers[self.currentBuffer]],
                                   commandBufferCount=1)
 
         # Submit to the graphics queue passing a wait fence
-        vkQueueSubmit(self._queue, 1, submitInfo, self.waitFences[self._currentBuffer])
+        vkQueueSubmit(self.queue, 1, submitInfo, self.waitFences[self.currentBuffer])
 
         # Present the current buffer to the swap chain
         # Pass the semaphore signaled by the command buffer submission from the submit info as the wait semaphore for swap chain presentation
         # This ensures that the image is not presented to the windowing system until all commands have been submitted
-        self._swapChain.queuePresent(self._queue, self._currentBuffer, self.renderCompleteSemaphore)
-
+        self.swapChain.queuePresent(self.queue, self.currentBuffer, self.renderCompleteSemaphore)
 
     def prepareVertices(self, useStagingBuffers=True):
         logger.debug('begin prepareVertices')
@@ -309,7 +314,7 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
         # setup vertices
         vertexBuffer = np.array([[[1.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
                                  [[-1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
-                                 [[1.0, -1.0, 0.0], [0.0, 0.0, 1.0]]], np.float32)
+                                 [[0.0, -1.0, 0.0], [0.0, 0.0, 1.0]]], np.float32)
 
         # setup indices
         indexBuffer = np.array([0, 1, 2], np.uint32)
@@ -348,28 +353,28 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             )
 
             # Create a host-visible buffer to copy the vertex data to (staging buffer)
-            stagingBuffers.vertices.buffer = vkCreateBuffer(self._device, vertexBufferInfo, None)
-            memReqs = vkGetBufferMemoryRequirements(self._device, stagingBuffers.vertices.buffer)
+            stagingBuffers.vertices.buffer = vkCreateBuffer(self.device, vertexBufferInfo, None)
+            memReqs = vkGetBufferMemoryRequirements(self.device, stagingBuffers.vertices.buffer)
             memAlloc.allocationSize = memReqs.size
             # Request a host visible memory type that can be used to copy our data do
             # Also request it to be coherent, so that writes are visible to the GPU right after unmapping the buffer
             memAlloc.memoryTypeIndex = self.getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-            stagingBuffers.vertices.memory = vkAllocateMemory(self._device, memAlloc, None)
+            stagingBuffers.vertices.memory = vkAllocateMemory(self.device, memAlloc, None)
             # Map and copy
-            data = vkMapMemory(self._device, stagingBuffers.vertices.memory, 0, memAlloc.allocationSize, 0)
+            data = vkMapMemory(self.device, stagingBuffers.vertices.memory, 0, memAlloc.allocationSize, 0)
             vertex_c_ptr = ffi.cast('float*', vertexBuffer.ctypes.data)
             ffi.memmove(data, vertex_c_ptr, vertexBuffer.nbytes)
-            vkUnmapMemory(self._device, stagingBuffers.vertices.memory)
-            vkBindBufferMemory(self._device, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0)
+            vkUnmapMemory(self.device, stagingBuffers.vertices.memory)
+            vkBindBufferMemory(self.device, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0)
 
             # Create a device local buffer to which the (host local) vertex data will be copied and which will be used for rendering
             vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
-            self.vertices.buffer = vkCreateBuffer(self._device, vertexBufferInfo, None)
-            memReqs = vkGetBufferMemoryRequirements(self._device, self.vertices.buffer)
+            self.vertices.buffer = vkCreateBuffer(self.device, vertexBufferInfo, None)
+            memReqs = vkGetBufferMemoryRequirements(self.device, self.vertices.buffer)
             memAlloc.allocationSize = memReqs.size
             memAlloc.memoryTypeIndex = self.getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-            self.vertices.memory = vkAllocateMemory(self._device, memAlloc, None)
-            vkBindBufferMemory(self._device, self.vertices.buffer, self.vertices.memory, 0)
+            self.vertices.memory = vkAllocateMemory(self.device, memAlloc, None)
+            vkBindBufferMemory(self.device, self.vertices.buffer, self.vertices.memory, 0)
 
             # index buffer
             indexbufferInfo = VkBufferCreateInfo(
@@ -377,25 +382,25 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
                 usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT
             )
             # Copy index data to a buffer visible to the host (staging buffer)
-            stagingBuffers.indices.buffer = vkCreateBuffer(self._device, indexbufferInfo, None)
-            memReqs = vkGetBufferMemoryRequirements(self._device, stagingBuffers.indices.buffer)
+            stagingBuffers.indices.buffer = vkCreateBuffer(self.device, indexbufferInfo, None)
+            memReqs = vkGetBufferMemoryRequirements(self.device, stagingBuffers.indices.buffer)
             memAlloc.allocationSize = memReqs.size
             memAlloc.memoryTypeIndex = self.getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-            stagingBuffers.indices.memory = vkAllocateMemory(self._device, memAlloc, None)
-            data = vkMapMemory(self._device, stagingBuffers.indices.memory, 0, indexBuffer.nbytes, 0)
+            stagingBuffers.indices.memory = vkAllocateMemory(self.device, memAlloc, None)
+            data = vkMapMemory(self.device, stagingBuffers.indices.memory, 0, indexBuffer.nbytes, 0)
             index_c_ptr = ffi.cast('uint32_t*', indexBuffer.ctypes.data)
             ffi.memmove(data, index_c_ptr, indexBuffer.nbytes)
-            vkUnmapMemory(self._device, stagingBuffers.indices.memory)
-            vkBindBufferMemory(self._device, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0)
+            vkUnmapMemory(self.device, stagingBuffers.indices.memory)
+            vkBindBufferMemory(self.device, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0)
 
             # Create destination buffer with device only visibility
             indexbufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
-            self.indices.buffer = vkCreateBuffer(self._device, indexbufferInfo, None)
-            memReqs = vkGetBufferMemoryRequirements(self._device, self.indices.buffer)
+            self.indices.buffer = vkCreateBuffer(self.device, indexbufferInfo, None)
+            memReqs = vkGetBufferMemoryRequirements(self.device, self.indices.buffer)
             memAlloc.allocationSize = memReqs.size
             memAlloc.memoryTypeIndex = self.getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-            self.indices.memory = vkAllocateMemory(self._device, memAlloc, None)
-            vkBindBufferMemory(self._device, self.indices.buffer, self.indices.memory, 0)
+            self.indices.memory = vkAllocateMemory(self.device, memAlloc, None)
+            vkBindBufferMemory(self.device, self.indices.buffer, self.indices.memory, 0)
 
             cmdBufferBeginInfo = VkCommandBufferBeginInfo()
 
@@ -418,10 +423,10 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
 
             # Destroy staging buffers
             # Note: Staging buffer must not be deleted before the copies have been submitted and executed
-            vkDestroyBuffer(self._device, stagingBuffers.vertices.buffer, None)
-            vkFreeMemory(self._device, stagingBuffers.vertices.memory, None)
-            vkDestroyBuffer(self._device, stagingBuffers.indices.buffer, None)
-            vkFreeMemory(self._device, stagingBuffers.indices.memory, None)
+            vkDestroyBuffer(self.device, stagingBuffers.vertices.buffer, None)
+            vkFreeMemory(self.device, stagingBuffers.vertices.memory, None)
+            vkDestroyBuffer(self.device, stagingBuffers.indices.buffer, None)
+            vkFreeMemory(self.device, stagingBuffers.indices.memory, None)
         else:
             # Don't use staging
             # Create host-visible buffers only and use these for rendering. This is not advised and will usually result in lower rendering performance
@@ -433,16 +438,16 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             )
 
             # Copy vertex data to a buffer visible to the host
-            self.vertices.buffer = vkCreateBuffer(self._device, vertexBufferInfo, None)
-            memReqs = vkGetBufferMemoryRequirements(self._device, self.vertices.buffer)
+            self.vertices.buffer = vkCreateBuffer(self.device, vertexBufferInfo, None)
+            memReqs = vkGetBufferMemoryRequirements(self.device, self.vertices.buffer)
             memAlloc.allocationSize = memReqs.size
             memAlloc.memoryTypeIndex = self.getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-            self.vertices.memory = vkAllocateMemory(self._device, memAlloc, None)
-            data = vkMapMemory(self._device, self.vertices.memory, 0, memAlloc.allocationSize, 0)
+            self.vertices.memory = vkAllocateMemory(self.device, memAlloc, None)
+            data = vkMapMemory(self.device, self.vertices.memory, 0, memAlloc.allocationSize, 0)
             vertex_c_ptr = ffi.cast('float*', vertexBuffer.ctypes.data)
             ffi.memmove(data, vertex_c_ptr, vertexBuffer.nbytes)
-            vkUnmapMemory(self._device, self.vertices.memory)
-            vkBindBufferMemory(self._device, self.vertices.buffer, self.vertices.memory, 0)
+            vkUnmapMemory(self.device, self.vertices.memory)
+            vkBindBufferMemory(self.device, self.vertices.buffer, self.vertices.memory, 0)
 
             # Index buffer
             indexbufferInfo = VkBufferCreateInfo(
@@ -451,16 +456,16 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             )
 
             # Copy index data to a buffer visible to the host
-            self.indices.buffer = vkCreateBuffer(self._device, indexbufferInfo, None)
-            memReqs = vkGetBufferMemoryRequirements(self._device, self.indices.buffer)
+            self.indices.buffer = vkCreateBuffer(self.device, indexbufferInfo, None)
+            memReqs = vkGetBufferMemoryRequirements(self.device, self.indices.buffer)
             memAlloc.allocationSize = memReqs.size
             memAlloc.memoryTypeIndex = self.getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-            self.indices.memory = vkAllocateMemory(self._device, memAlloc, None)
-            data = vkMapMemory(self._device, self.indices.memory, 0, indexBuffer.nbytes, 0)
+            self.indices.memory = vkAllocateMemory(self.device, memAlloc, None)
+            data = vkMapMemory(self.device, self.indices.memory, 0, indexBuffer.nbytes, 0)
             index_c_ptr = ffi.cast('uint32_t*', indexBuffer.ctypes.data)
             ffi.memmove(data, index_c_ptr, indexBuffer.nbytes)
-            vkUnmapMemory(self._device, self.indices.memory)
-            vkBindBufferMemory(self._device, self.indices.buffer, self.indices.memory, 0)
+            vkUnmapMemory(self.device, self.indices.memory)
+            vkBindBufferMemory(self.device, self.indices.buffer, self.indices.memory, 0)
 
         # Vertex input binding
         self.vertices.inputBinding.binding = VERTEX_BUFFER_BIND_ID
@@ -519,7 +524,7 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             maxSets=1
         )
 
-        self._descriptorPool = vkCreateDescriptorPool(self._device, descriptorPoolInfo, None)
+        self.descriptorPool = vkCreateDescriptorPool(self.device, descriptorPoolInfo, None)
         logger.debug('end of setupDescriptorPool')
 
     def setupDescriptorSetLayout(self):
@@ -540,7 +545,7 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             pBindings=[layoutBinding]
         )
 
-        self.descriptorSetLayout = vkCreateDescriptorSetLayout(self._device, descriptorLayout, None)
+        self.descriptorSetLayout = vkCreateDescriptorSetLayout(self.device, descriptorLayout, None)
 
         # Create the pipeline layout that is used to generate the rendering pipelines that are based on this descriptor set layout
         # In a more complex scenario you would have different pipeline layouts for different descriptor set layouts that could be reused
@@ -548,19 +553,19 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             setLayoutCount=1,
             pSetLayouts=[self.descriptorSetLayout]
         )
-        self.pipelineLayout = vkCreatePipelineLayout(self._device, pPipelineLayoutCreateInfo, None)
+        self.pipelineLayout = vkCreatePipelineLayout(self.device, pPipelineLayoutCreateInfo, None)
         logger.debug('end of setupDescriptorSetLayout')
 
     def setupDescriptorSet(self):
         logger.debug('begin setupDescriptorSet')
         # Allocate a new descriptor set from the global descriptor pool
         allocInfo = VkDescriptorSetAllocateInfo(
-            descriptorPool=self._descriptorPool,
+            descriptorPool=self.descriptorPool,
             descriptorSetCount=1,
             pSetLayouts=[self.descriptorSetLayout]
         )
 
-        self.descriptorSet = vkAllocateDescriptorSets(self._device, allocInfo)[0]
+        self.descriptorSet = vkAllocateDescriptorSets(self.device, allocInfo)[0]
 
         # Update the descriptor set determining the shader binding points
         # For every binding point used in a shader there needs to be one
@@ -573,7 +578,7 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             dstBinding=0
         )
 
-        vkUpdateDescriptorSets(self._device, 1, [writeDescriptorSet], 0, ffi.NULL)
+        vkUpdateDescriptorSets(self.device, 1, [writeDescriptorSet], 0, ffi.NULL)
         logger.debug('end of setupDescriptorSet')
 
     def setupDepthStencil(self):
@@ -583,8 +588,8 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
         # Create an optimal image used as the depth stencil attachment
         image = VkImageCreateInfo(
             imageType=VK_IMAGE_TYPE_2D,
-            format=self._depthFormat,
-            extent=[self.width, self.height, 1],
+            format=self.depthFormat,
+            extent=[self.winWidth, self.winHeight, 1],
             mipLevels=1,
             arrayLayers=1,
             samples=VK_SAMPLE_COUNT_1_BIT,
@@ -592,47 +597,50 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             usage=VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
             initialLayout=VK_IMAGE_LAYOUT_UNDEFINED
         )
-        self.depthStencil.image = vkCreateImage(self._device, image, None)
+        self.depthStencil.image = vkCreateImage(self.device, image, None)
 
         # Allocate memory for the image (device local) and bind it to our image
         memAlloc = VkMemoryAllocateInfo()
-        memReqs = vkGetImageMemoryRequirements(self._device, self.depthStencil.image)
+        memReqs = vkGetImageMemoryRequirements(self.device, self.depthStencil.image)
         memAlloc.allocationSize = memReqs.size
         memAlloc.memoryTypeIndex = self.getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-        self.depthStencil.mem = vkAllocateMemory(self._device, memAlloc, None)
-        vkBindImageMemory(self._device, self.depthStencil.image, self.depthStencil.mem, 0)
+        self.depthStencil.mem = vkAllocateMemory(self.device, memAlloc, None)
+        vkBindImageMemory(self.device, self.depthStencil.image, self.depthStencil.mem, 0)
 
         # Create a view for the depth stencil image
         # Images aren't directly accessed in Vulkan, but rather through views described by a subresource range
         # This allows for multiple views of one image with differing ranges (e.g. for different layers)
         depthStencilView = VkImageViewCreateInfo(
             viewType=VK_IMAGE_VIEW_TYPE_2D,
-            format=self._depthFormat,
+            format=self.depthFormat,
             subresourceRange=[VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1],
             image=self.depthStencil.image
         )
-        self.depthStencil.view = vkCreateImageView(self._device, depthStencilView, None)
+        self.depthStencil.view = vkCreateImageView(self.device, depthStencilView, None)
         logger.debug('end of setupDepthStencil')
 
     def setupFrameBuffer(self):
         logger.debug('begin setupFrameBuffer')
         '''Create a frame buffer for each swap chain image'''
         # Create a frame buffer for every image in the swapchain
-        self._frameBuffers = []
-        for buf in self._swapChain.buffers:
+        self.frameBuffers = []
+        for buf in self.swapChain.buffers:
             attachments = [buf.view, self.depthStencil.view]
 
             frameBufferCreateInfo = VkFramebufferCreateInfo(
-                renderPass=self._renderPass,
+                renderPass=self.renderPass,
                 attachmentCount=len(attachments),
                 pAttachments=attachments,
-                width=self.width,
-                height=self.height,
+                width=self.winWidth,
+                height=self.winHeight,
                 layers=1
             )
             # Create the framebuffer
-            frameBuf = vkCreateFramebuffer(self._device, frameBufferCreateInfo, None)
-            self._frameBuffers.append(frameBuf)
+            logger.debug('Create the framebuffer')
+            logger.debug('color format: {}'.format(self.colorformat))
+            logger.debug('swapchain color format: {}'.format(self.swapChain.colorFormat))
+            frameBuf = vkCreateFramebuffer(self.device, frameBufferCreateInfo, None)
+            self.frameBuffers.append(frameBuf)
 
         logger.debug('end of setupFrameBuffer')
 
@@ -648,7 +656,7 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
         attachments = [VkAttachmentDescription(), VkAttachmentDescription()]
 
         # Color attachment
-        attachments[0].format = self._colorformat
+        attachments[0].format = self.colorformat
         attachments[0].samples = VK_SAMPLE_COUNT_1_BIT
         attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR
         attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE
@@ -658,7 +666,7 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
         attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 
         # Depth attachment
-        attachments[1].format = self._depthFormat
+        attachments[1].format = self.depthFormat
         attachments[1].samples = VK_SAMPLE_COUNT_1_BIT
         attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR
         attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE
@@ -687,27 +695,33 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
         # Each subpass dependency will introduce a memory and execution dependency between the source and dest subpass described by
         # srcStageMask, dstStageMask, srcAccessMask, dstAccessMask (and dependencyFlags is set)
         # Note: VK_SUBPASS_EXTERNAL is a special constant that refers to all commands executed outside of the actual renderpass)
-        dependencies = [VkSubpassDependency(), VkSubpassDependency()]
+        # dependencies = [VkSubpassDependency(), VkSubpassDependency()]
 
         # First dependency at the start of the renderpass
         # Does the transition from final to initial layout
-        dependencies[0].srcSubpass = ffi.cast('uint32_t', VK_SUBPASS_EXTERNAL)
-        dependencies[0].dstSubpass = 0
-        dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
-        dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-        dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT
-        dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-        dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+        sd1 = VkSubpassDependency(
+            srcSubpass=ffi.cast('uint32_t', VK_SUBPASS_EXTERNAL),
+            dstSubpass=0,
+            srcStageMask=VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            dstStageMask=VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            srcAccessMask=VK_ACCESS_MEMORY_READ_BIT,
+            dstAccessMask=VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            dependencyFlags=VK_DEPENDENCY_BY_REGION_BIT
+        )
 
         # Second dependency at the end the renderpass
         # Does the transition from the initial to the final layout
-        dependencies[0].srcSubpass = 0
-        dependencies[0].dstSubpass = ffi.cast('uint32_t', VK_SUBPASS_EXTERNAL)
-        dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-        dependencies[0].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
-        dependencies[0].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-        dependencies[0].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT
-        dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+        sd2 = VkSubpassDependency(
+            srcSubpass=0,
+            dstSubpass=ffi.cast('uint32_t', VK_SUBPASS_EXTERNAL),
+            srcStageMask=VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            dstStageMask=VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            srcAccessMask=VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            dstAccessMask=VK_ACCESS_MEMORY_READ_BIT,
+            dependencyFlags=VK_DEPENDENCY_BY_REGION_BIT
+        )
+
+        dependencies = [sd1, sd2]
 
         # Create the actual renderpass
         renderPassInfo = VkRenderPassCreateInfo(
@@ -718,7 +732,7 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             dependencyCount=len(dependencies),
             pDependencies=dependencies
         )
-        self._renderPass = vkCreateRenderPass(self._device, renderPassInfo, None)
+        self.renderPass = vkCreateRenderPass(self.device, renderPassInfo, None)
         logger.debug('end of setupRenderPass')
 
     def preparePipelines(self):
@@ -801,12 +815,12 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
         ssv, vertShader = self.loadShader('shaders/triangle.vert.spv', VK_SHADER_STAGE_VERTEX_BIT)
         ssf, fragShader = self.loadShader('shaders/triangle.frag.spv', VK_SHADER_STAGE_FRAGMENT_BIT)
         shaderStages = [ssv, ssf]
-        self._shaderModules.append(vertShader)
-        self._shaderModules.append(fragShader)
+        self.shaderModules.append(vertShader)
+        self.shaderModules.append(fragShader)
 
         pipelineCreateInfo = VkGraphicsPipelineCreateInfo(
             layout=self.pipelineLayout,
-            renderPass=self._renderPass,
+            renderPass=self.renderPass,
             stageCount=len(shaderStages),
             pStages=shaderStages,
             pVertexInputState=self.vertices.inputState,
@@ -821,10 +835,9 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             basePipelineHandle=VK_NULL_HANDLE
         )
         # Create rendering pipeline using the specified states
-        self.pipeline = vkCreateGraphicsPipelines(self._device, self._pipelineCache, 1, pipelineCreateInfo, ffi.NULL)[0]
-        # self.pipeline = vkCreateGraphicsPipelines(self._device, VK_NULL_HANDLE, 1, pipelineCreateInfo, ffi.NULL)[0]
-        # vkDestroyShaderModule(self._device, vertShader, ffi.NULL)
-        # vkDestroyShaderModule(self._device, fragShader, ffi.NULL)
+        self.pipeline = vkCreateGraphicsPipelines(self.device, self.pipelineCache, 1, pipelineCreateInfo, ffi.NULL)[0]
+        # vkDestroyShaderModule(self.device, vertShader, ffi.NULL)
+        # vkDestroyShaderModule(self.device, fragShader, ffi.NULL)
         logger.debug('end of preparePipelines')
 
     def prepareUniformBuffers(self):
@@ -843,9 +856,9 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             usage=VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
         )
         # Create a new buffer
-        self.uniformDataVS.buffer = vkCreateBuffer(self._device, bufferInfo, None)
+        self.uniformDataVS.buffer = vkCreateBuffer(self.device, bufferInfo, None)
         # Get memory requirements including size, alignment and memory type
-        memReqs = vkGetBufferMemoryRequirements(self._device, self.uniformDataVS.buffer)
+        memReqs = vkGetBufferMemoryRequirements(self.device, self.uniformDataVS.buffer)
         allocInfo.allocationSize = memReqs.size
         # Get the memory type index that supports host visibile memory access
         # Most implementations offer multiple memory types and selecting the correct one to allocate memory from is crucial
@@ -853,9 +866,9 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
         # Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular base
         allocInfo.memoryTypeIndex = self.getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
         # Allocate memory for the uniform buffer
-        self.uniformDataVS.memory = vkAllocateMemory(self._device, allocInfo, None)
+        self.uniformDataVS.memory = vkAllocateMemory(self.device, allocInfo, None)
         # Bind memory to buffer
-        vkBindBufferMemory(self._device, self.uniformDataVS.buffer, self.uniformDataVS.memory, 0)
+        vkBindBufferMemory(self.device, self.uniformDataVS.buffer, self.uniformDataVS.memory, 0)
 
         # Store information in the uniform's descriptor that is used by the descriptor set
         self.uniformDataVS.descriptor.buffer = self.uniformDataVS.buffer
@@ -868,7 +881,7 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
     def updateUniformBuffers(self):
         logger.debug('begin updateUniformBuffers')
         # Update matrices
-        self.uboVS.projectionMatrix = glm.perspective(60.0, float(self.width) / self.height, 0.1, 256.0)
+        self.uboVS.projectionMatrix = glm.perspective(60.0, float(self.winWidth) / self.winHeight, 0.1, 256.0)
 
         self.uboVS.viewMatrix = glm.translate(self.uboVS.viewMatrix, 0.0, 0.0, self.zoom)
 
@@ -877,11 +890,11 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
         self.uboVS.modelMatrix = glm.rotate(self.uboVS.modelMatrix, self.rotation[2], 0.0, 0.0, 1.0)
 
         # Map uniform buffer and update it
-        data = vkMapMemory(self._device, self.uniformDataVS.memory, 0, self.uboVS.nbytes, 0)
+        data = vkMapMemory(self.device, self.uniformDataVS.memory, 0, self.uboVS.nbytes, 0)
         ffi.memmove(data, self.uboVS.c_ptr, self.uboVS.nbytes)
         # Unmap after data has been copied
         # Note: Since we requested a host coherent memory type for the uniform buffer, the write is instantly visible to the GPU
-        vkUnmapMemory(self._device, self.uniformDataVS.memory)
+        vkUnmapMemory(self.device, self.uniformDataVS.memory)
         logger.debug('end of updateUniformBuffers')
 
     def prepare(self):
@@ -902,23 +915,32 @@ class VulkanExample(vulkanExampleBase.VulkanExampleBase):
             return
         self.draw()
 
-    def viewChanged(self):
-        # This function is called by the base example class each time the view is changed by user input
-        self.updateUniformBuffers()
+    # def viewChanged(self):
+    #     # This function is called by the base example class each time the view is changed by user input
+    #     self.updateUniformBuffers()
 
 if __name__ == '__main__':
     import sys
 
-    app = QtGui.QApplication(sys.argv)
+    app = QtGui.QGuiApplication(sys.argv)
 
-    vulkanExample = VulkanExample()
-    logger.debug('setup window')
-    vulkanExample.setupWindow()
-    # vulkanExample.show()
-    logger.debug('init swapchain')
-    vulkanExample.initSwapchain()
-    logger.debug('prepare')
-    vulkanExample.prepare()
-    vulkanExample.renderLoop()
+    # vulkanExample = VulkanExample()
+    # logger.debug('setup window')
+    # vulkanExample.setupWindow()
+    # # vulkanExample.show()
+    # logger.debug('init swapchain')
+    # vulkanExample.initSwapchain()
+    # logger.debug('prepare')
+    # vulkanExample.prepare()
+    # vulkanExample.renderLoop()
 
-    sys.exit(app.exec_())
+    vulkanExample = VulkanExample(ENABLE_VALIDATION)
+    vulkanExample.show()
+
+    def cleanUp():
+        global win
+        del win
+
+    app.aboutToQuit.connect(cleanUp)
+
+    sys.exit(app.exec())

@@ -7,9 +7,13 @@
 
 import math
 
+import cffi
 import numpy as np
 
 import glm
+
+
+ffi = cffi.FFI()
 
 
 class _CameraType(object):
@@ -32,6 +36,15 @@ class _Matrices(object):
         self.view = np.identity(4, np.float32)
         self.perspective = np.identity(4, np.float32)
 
+    @property
+    def nbytes(self):
+        return self.view.nbytes + self.perspective.nbytes
+
+    @property
+    def c_ptr(self):
+        a = np.concatenate((self.view, self.perspective))
+
+        return ffi.cast('float*', a.ctypes.data)
 
 class _Keys(object):
 
@@ -43,6 +56,8 @@ class _Keys(object):
 
 
 class Camera(object):
+
+    firstperson = CameraType.firstperson
 
     def __init__(self):
         self.type = CameraType.lookat

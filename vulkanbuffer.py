@@ -8,23 +8,24 @@
 from pyVulkan import *
 
 
-class _Buffer(object):
+class Buffer(object):
 
-    def __init__(self):
+    def __init__(self, device=None):
         self.buffer = None
-        self.device = None
+        self.device = device
         self.memory = None
         self.descriptor = VkDescriptorBufferInfo()
         self.size = 0
         self.alignment = 0
         self.mapped = VK_NULL_HANDLE
 
-        self.usageFlages = 0
+        self.usageFlags = 0
         self.memoryPropertyFlags = 0
 
 
-    def map(self, size, offset=0):
-        return vkMapMemory(self.device, self.memory, offset, size, 0)
+    def map(self, size=18446744073709551615, offset=0):
+        self.mapped = vkMapMemory(self.device, self.memory, offset, size, 0)
+        return self.mapped
 
     def unmap(self):
         if self.mapped:
@@ -34,7 +35,7 @@ class _Buffer(object):
     def bind(self, offset=0):
         vkBindBufferMemory(self.device, self.buffer, self.memory, offset)
 
-    def setupDescriptor(self, size, offset=0):
+    def setupDescriptor(self, size=18446744073709551615, offset=0):
         self.descriptor.offset = offset
         self.descriptor.buffer = self.buffer
         self.descriptor.range = size
@@ -62,6 +63,9 @@ class _Buffer(object):
         vkInvalidateMappedMemoryRanges(self.device, 1, [mappedRange])
 
     def __del__(self):
+        if self.mapped:
+            self.mapped = VK_NULL_HANDLE
+
         if self.buffer:
             vkDestroyBuffer(self.device, self.buffer, None)
 
