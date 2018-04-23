@@ -1,4 +1,2 @@
-# pyVulkanExamples
-Examples and demos from SaschaWillems for pyVulkan
-
-All examples are test with Python 3.6 on Windows 10.
+# vulkanExamples.py
+Examples and demos from [SaschaWillems](https://github.com/SaschaWillems/Vulkan) with python
