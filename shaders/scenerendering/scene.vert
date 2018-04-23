@@ -22,6 +22,11 @@ layout (location = 2) out vec2 outUV;
 layout (location = 3) out vec3 outViewVec;
 layout (location = 4) out vec3 outLightVec;
 
+out gl_PerVertex
+{
+	vec4 gl_Position;
+};
+
 void main() 
 {
 	outNormal = inNormal;
@@ -35,6 +40,6 @@ void main()
 	vec4 pos = modelView * vec4(inPos, 0.0);
 	outNormal = mat3(ubo.model) * inNormal;
 	vec3 lPos = mat3(ubo.model) * ubo.lightPos.xyz;
-	outLightVec = lPos - (ubo.model * vec4(inPos, 0.0)).xyz;
-	outViewVec = -(ubo.model * vec4(inPos, 0.0)).xyz;		
+	outLightVec = lPos - (ubo.model * vec4(inPos, 1.0)).xyz;
+	outViewVec = -(ubo.model * vec4(inPos, 1.0)).xyz;		
 }

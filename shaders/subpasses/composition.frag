@@ -3,18 +3,15 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-layout (input_attachment_index = 1, binding = 0) uniform subpassInput samplerposition;
-layout (input_attachment_index = 2, binding = 1) uniform subpassInput samplerNormal;
-layout (input_attachment_index = 3, binding = 2) uniform subpassInput samplerAlbedo;
+layout (input_attachment_index = 0, binding = 0) uniform subpassInput samplerposition;
+layout (input_attachment_index = 1, binding = 1) uniform subpassInput samplerNormal;
+layout (input_attachment_index = 2, binding = 2) uniform subpassInput samplerAlbedo;
 
 layout (location = 0) in vec2 inUV;
 
-layout (location = 0) out vec4 outFragcolor;
-layout (location = 1) out vec4 outPosition;
-layout (location = 2) out vec4 outNormal;
-layout (location = 3) out vec4 outAlbedo;
+layout (location = 0) out vec4 outColor;
 
-layout (constant_id = 0) const int NUM_LIGHTS = 32;
+layout (constant_id = 0) const int NUM_LIGHTS = 64;
 
 struct Light {
 	vec4 position;
@@ -67,15 +64,10 @@ void main()
 		// Specular map values are stored in alpha of albedo mrt
 		vec3 R = reflect(-L, N);
 		float NdotR = max(0.0, dot(R, V));
-		vec3 spec = ubo.lights[i].color * albedo.a * pow(NdotR, 32.0) * atten;
+		//vec3 spec = ubo.lights[i].color * albedo.a * pow(NdotR, 32.0) * atten;
 
-		fragcolor += diff + spec;	
+		fragcolor += diff;// + spec;	
 	}    	
    
-	outFragcolor = vec4(fragcolor, 1.0);
-
-	// Write G-Buffer attachments to avoid undefined behaviour (validation error)
-	outPosition = vec4(0.0);
-	outNormal = vec4(0.0);
-	outAlbedo = vec4(0.0);
+	outColor = vec4(fragcolor, 1.0);
 }
