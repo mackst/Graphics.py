@@ -1,4 +1,2 @@
-PyQt5
 Pillow
 numpy
-pyVulkan
